@@ -3,7 +3,7 @@ pub mod LangCompose {
     use std::{
         collections::{HashMap, HashSet},
         fs,
-        path::Path,
+        path::{Path, PathBuf},
     };
 
     use regex::Regex;
@@ -52,7 +52,7 @@ export function getLanguage() {{
 
     pub fn extract_strs(fpath: &str) -> Vec<String> {
         let text = std::fs::read_to_string(fpath).unwrap();
-        let re = Regex::new(r#""[^"]*"|'[^']*'|`[^`]*`"#).unwrap();
+        let re = Regex::new(r#"(?<=\()("[^"]*"|'[^']*'|`[^`]*`)(?=\))"#).unwrap();
         re.find_iter(&text)
             .map(|m| m.as_str().to_string())
             .collect()
@@ -163,9 +163,58 @@ export function getLanguage() {{
         Ok(())
     }
 
+    pub fn i18n_import_path(project_root: &Path, file_path: &Path) -> String {
+        let file_dir = file_path.parent().unwrap();
+
+        let relative = file_dir.strip_prefix(project_root).unwrap();
+
+        let depth = relative.components().count();
+
+        let mut path = PathBuf::new();
+
+        if depth == 0 {
+            path.push("./i18n.js");
+        } else {
+            for _ in 0..depth {
+                path.push("..");
+            }
+            path.push("i18n.js");
+        }
+
+        path.to_string_lossy().replace('\\', "/")
+    }
+
+    pub fn convert_template_literal(s: &str) -> String {
+        let re = Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").unwrap();
+
+        let mut out = format!("t(\"{}\")", s);
+
+        for cap in re.captures_iter(s) {
+            let name = &cap[1];
+            out.push_str(&format!("\n    .replace(\"${{{}}}\", {})", name, name));
+        }
+
+        out
+    }
+
     pub fn update_files(root: &str, fmap: Vec<(String, Vec<String>)>) {
         for (fpath, list) in &fmap {
-            //let mut buff = std::fs::read_to_string().unwrap();
+            let path = root.to_string() + fpath;
+            let mut buff = std::fs::read_to_string(path.clone()).unwrap();
+            for i in list {
+                if i.starts_with("`") {
+                    buff = buff.replace(i, &convert_template_literal(i)[..]);
+                } else {
+                    let mut m = (&i[1..]).to_string();
+                    m.pop().unwrap();
+                    buff = buff.replace(i, &format!("t(\"{m}\")",)[..]);
+                }
+            }
+            let updated = format!(
+                "import {{ setLanguage, t, getLanguage}} from {}",
+                i18n_import_path(Path::new(root), Path::new(fpath))
+            ) + &buff;
+            fs::write(path, updated);
         }
     }
 }

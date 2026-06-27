@@ -7,7 +7,6 @@ use crate::ai::LLM::translate_all;
 use Langcompose::LangCompose;
 use helper::Helper;
 
-// TODO: FIXME: The json has errors use mssg_id encoding
 
 fn main() {
     let mut clargs = Helper::CLI::new();
@@ -53,6 +52,7 @@ fn main() {
                 .collect();
             LangCompose::build_dir(&clargs.proj_dir[..], &all_words, Some(&ret), None).unwrap();
             LangCompose::build_i18n(&clargs.proj_dir[..], langs.clone());
+            LangCompose::update_files(&clargs.proj_dir[..],ret);
         }
     }
 }
