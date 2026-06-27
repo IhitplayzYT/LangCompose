@@ -51,12 +51,12 @@ export function getLanguage() {{
     }
 
     pub fn extract_strs(fpath: &str) -> Vec<String> {
-        let text = std::fs::read_to_string(fpath).unwrap();
-        let re = Regex::new(r#"(?<=\()("[^"]*"|'[^']*'|`[^`]*`)(?=\))"#).unwrap();
-        re.find_iter(&text)
-            .map(|m| m.as_str().to_string())
-            .collect()
-    }
+    let text = std::fs::read_to_string(fpath).unwrap();
+    let re = Regex::new(r#"(?:^|[^\[])("[^"]*[a-zA-Z][^"]*"|'[^']*[a-zA-Z][^']*'|`[^`]*[a-zA-Z][^`]*`)"#).unwrap();
+    re.captures_iter(&text)
+        .map(|cap| cap[1].to_string())
+        .collect()
+}
 
     pub fn get_strings(root_dir: &str, ignores: &HashSet<String>) -> Vec<(String, Vec<String>)> {
         let mut ret = Vec::new();
@@ -80,7 +80,8 @@ export function getLanguage() {{
         let fpath = Path::new(root).join("LangCompose");
         if fpath.is_file() {
             std::fs::read_to_string(fpath)
-                .unwrap()
+                .unwrap().trim()
+
                 .split("\n")
                 .map(|x| x.to_string())
                 .collect::<Vec<String>>()
@@ -96,7 +97,7 @@ export function getLanguage() {{
         if fpath.is_file() {
             k = Some(
                 std::fs::read_to_string(fpath)
-                    .unwrap()
+                    .unwrap().trim()
                     .split("\n")
                     .map(|x| x.to_string())
                     .collect::<Vec<String>>(),
@@ -127,7 +128,9 @@ export function getLanguage() {{
         langs: Option<&Vec<String>>,
     ) -> std::io::Result<()> {
         let bpath = Path::new(root).join("locales/");
-        if let Ok(_) = std::fs::create_dir(bpath.clone()) {
+        if !bpath.is_dir() {
+         std::fs::create_dir(bpath.clone()).unwrap()
+        }
             if let Some(x) = lang_maps {
                 x.iter().for_each(|(a, b)| {
                     let fpath = bpath.join(a.to_string() + ".json");
@@ -142,6 +145,13 @@ export function getLanguage() {{
                         buff.pop();
                     }
                     buff += "\n}";
+                    if Path::new(&fpath).is_file(){
+                        let mut old = fs::read_to_string(fpath.clone()).unwrap(); 
+                        old.pop();
+                        old.pop();
+                        old += ",\n";
+                        buff = old + &buff[1..];
+                    }
                     fs::write(fpath, buff).unwrap();
                 });
             }
@@ -158,7 +168,6 @@ export function getLanguage() {{
                 buff += "\n}";
                 fs::write(fpath, buff).unwrap();
             }
-        }
 
         Ok(())
     }
@@ -199,8 +208,7 @@ export function getLanguage() {{
 
     pub fn update_files(root: &str, fmap: Vec<(String, Vec<String>)>) {
         for (fpath, list) in &fmap {
-            let path = root.to_string() + fpath;
-            let mut buff = std::fs::read_to_string(path.clone()).unwrap();
+            let mut buff = std::fs::read_to_string(fpath.clone()).unwrap();
             for i in list {
                 if i.starts_with("`") {
                     buff = buff.replace(i, &convert_template_literal(i)[..]);
@@ -211,10 +219,10 @@ export function getLanguage() {{
                 }
             }
             let updated = format!(
-                "import {{ setLanguage, t, getLanguage}} from {}",
+                "import {{ setLanguage, t, getLanguage}} from \"{}\";\n",
                 i18n_import_path(Path::new(root), Path::new(fpath))
             ) + &buff;
-            fs::write(path, updated);
+            fs::write(fpath, updated).unwrap();
         }
     }
 }

@@ -22,6 +22,8 @@ fn main() {
         .collect::<HashSet<String>>();
     ignores.insert(format!("{}LangCompose", clargs.proj_dir));
     ignores.insert(format!("{}.LangIgnore", clargs.proj_dir));
+    ignores.insert(format!("{}i18n.js", clargs.proj_dir));
+    ignores.insert(format!("{}locales", clargs.proj_dir));
     println!("{ignores:?}");
     let langs = LangCompose::get_langs(&clargs.proj_dir[..]);
     let words = LangCompose::get_strings(&clargs.proj_dir[..], &ignores);
@@ -34,7 +36,7 @@ fn main() {
         LangCompose::build_dir(&clargs.proj_dir[..], &all_words, None, Some(&all_words)).unwrap();
         LangCompose::build_i18n(&clargs.proj_dir[..], langs);
     } else {
-        for (fname, strings) in &words {
+        for (fname, strings) in &words.clone() {
             let ret: Vec<Vec<String>> = langs
                 .iter()
                 .map(|x| translate_all(strings, x).unwrap())
@@ -51,8 +53,9 @@ fn main() {
                 .into_iter()
                 .collect();
             LangCompose::build_dir(&clargs.proj_dir[..], &all_words, Some(&ret), None).unwrap();
-            LangCompose::build_i18n(&clargs.proj_dir[..], langs.clone());
-            LangCompose::update_files(&clargs.proj_dir[..],ret);
         }
+
+            LangCompose::build_i18n(&clargs.proj_dir[..], langs.clone());
+            LangCompose::update_files(&clargs.proj_dir[..],words.clone());
     }
 }
